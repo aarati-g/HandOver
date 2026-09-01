@@ -62,9 +62,9 @@ htmlcov/
 !.env.example
 
 # IDEs and Editors
-.vscode/
-!.vscode/extensions.json
+.vscode/*
 !.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.sublime-project
 *.sublime-workspace

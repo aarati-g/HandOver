@@ -1,0 +1,25 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/Scripts/python.exe",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/backend"
+  ],
+  "python.analysis.ignore": [
+    "C:/__pyrelyfy_virtual__/**",
+    "**/__pyrelyfy_virtual__/**",
+    "**/inmemory/**",
+    "**/__pycache__/**"
+  ],
+  "python.analysis.exclude": [
+    "C:/__pyrelyfy_virtual__/**",
+    "**/__pyrelyfy_virtual__/**",
+    "**/inmemory/**",
+    "**/__pycache__/**"
+  ],
+  "files.exclude": {
+    "**/__pyrelyfy_virtual__/**": true
+  },
+  "files.watcherExclude": {
+    "C:/__pyrelyfy_virtual__/**": true,
+    "**/__pyrelyfy_virtual__/**": true
+  }
+}
