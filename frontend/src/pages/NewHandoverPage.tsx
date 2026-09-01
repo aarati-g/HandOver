@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Mic,
@@ -11,6 +11,9 @@ import {
   Check,
   UserCheck,
   Loader2,
+  Square,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import {
   PageHeader,
@@ -51,12 +54,229 @@ export const NewHandoverPage: React.FC = () => {
   const [isAnswering, setIsAnswering] = useState(false);
   const [isGapResolved, setIsGapResolved] = useState(false);
   const [bannerToast, setBannerToast] = useState<string | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+
+  // Audio Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerIntervalRef = useRef<number | null>(null);
+
+  // Camera Capture State
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (assetQuery) {
       setSelectedAssetCode(assetQuery);
     }
   }, [assetQuery]);
+
+  // Clean up media tracks and timers on unmount
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (videoStreamRef.current) {
+        videoStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, []);
+
+  // Attach camera stream to video element when camera is opened
+  useEffect(() => {
+    if (isCameraActive && videoRef.current && videoStreamRef.current) {
+      videoRef.current.srcObject = videoStreamRef.current;
+      videoRef.current.play().catch((err) => {
+        console.warn('Video preview playback warning:', err);
+      });
+    }
+  }, [isCameraActive]);
+
+  // Microphone: Start Recording
+  const handleStartRecording = async () => {
+    setMediaError(null);
+
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia ||
+      typeof window.MediaRecorder === 'undefined'
+    ) {
+      setMediaError("Media capture isn't supported in this browser. You can continue with text.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      let options: MediaRecorderOptions | undefined = undefined;
+      if (typeof MediaRecorder.isTypeSupported === 'function') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options = { mimeType: 'audio/webm;codecs=opus' };
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          options = { mimeType: 'audio/webm' };
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          options = { mimeType: 'audio/mp4' };
+        }
+      }
+
+      const recorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (audioChunksRef.current.length > 0) {
+          const blob = new Blob(audioChunksRef.current, {
+            type: recorder.mimeType || 'audio/webm',
+          });
+          const url = URL.createObjectURL(blob);
+          setAudioUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return url;
+          });
+        }
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach((track) => track.stop());
+          audioStreamRef.current = null;
+        }
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = window.setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.warn('Microphone access failed:', err);
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop());
+        audioStreamRef.current = null;
+      }
+      setIsRecording(false);
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      setMediaError('Camera or microphone permission was denied. You can continue with text.');
+    }
+  };
+
+  // Microphone: Stop Recording
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (err) {
+        console.warn('MediaRecorder stop warning:', err);
+      }
+    }
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    setIsRecording(false);
+  };
+
+  // Microphone: Remove Audio
+  const handleRemoveAudio = () => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+  };
+
+  // Camera: Open Camera Stream
+  const handleOpenCamera = async () => {
+    setMediaError(null);
+
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      setMediaError("Media capture isn't supported in this browser. You can continue with text.");
+      return;
+    }
+
+    try {
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      videoStreamRef.current = stream;
+      setIsCameraActive(true);
+    } catch (err) {
+      console.warn('Camera access failed:', err);
+      if (videoStreamRef.current) {
+        videoStreamRef.current.getTracks().forEach((track) => track.stop());
+        videoStreamRef.current = null;
+      }
+      setIsCameraActive(false);
+      setMediaError('Camera or microphone permission was denied. You can continue with text.');
+    }
+  };
+
+  // Camera: Capture Photo Frame
+  const handleCapturePhoto = () => {
+    if (videoRef.current) {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setCapturedImage(dataUrl);
+      }
+    }
+    handleCloseCamera();
+  };
+
+  // Camera: Close and Stop Stream
+  const handleCloseCamera = () => {
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach((track) => track.stop());
+      videoStreamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  // Camera: Remove Captured Image
+  const handleRemoveImage = () => {
+    setCapturedImage(null);
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Handle AI analysis call to FastAPI backend
   const handleStartAnalysis = async (e: React.FormEvent) => {
@@ -125,6 +345,29 @@ export const NewHandoverPage: React.FC = () => {
         </div>
       )}
 
+      {/* Permission / Unsupported Media Notification Banner */}
+      {mediaError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3 text-xs flex items-start justify-between gap-2 animate-fade-in">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">{mediaError}</p>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                Voice and camera are optional. You can continue with text input below.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMediaError(null)}
+            className="text-amber-600 hover:text-amber-800 text-xs font-bold px-1.5 py-0.5 rounded hover:bg-amber-100 shrink-0"
+            aria-label="Dismiss message"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* SCREEN 3: CREATE HANDOVER */}
       {/* ========================================================================= */}
@@ -181,26 +424,140 @@ export const NewHandoverPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Voice & Evidence Placeholders */}
+            {/* Voice & Evidence Action Controls */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setBannerToast('🎙 Voice recording will be enabled in next shift firmware update.')}
-                className="flex items-center justify-center gap-2 p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                onClick={isRecording ? handleStopRecording : handleStartRecording}
+                className={`flex items-center justify-center gap-2 p-2.5 border rounded-lg text-xs font-semibold transition-colors shadow-2xs ${
+                  isRecording
+                    ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse'
+                    : audioUrl
+                    ? 'bg-blue-50 border-blue-200 text-blue-800'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                <Mic className="w-4 h-4 text-blue-600" />
-                <span>🎙 Record</span>
+                {isRecording ? (
+                  <>
+                    <Square className="w-3.5 h-3.5 text-rose-600 fill-rose-600" />
+                    <span>Stop ({formatDuration(recordingDuration)})</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4 text-blue-600" />
+                    <span>{audioUrl ? '🎙 Voice Attached' : '🎙 Record'}</span>
+                  </>
+                )}
               </button>
 
               <button
                 type="button"
-                onClick={() => setBannerToast('📷 Camera photo inspection attachment is simulated for demo.')}
-                className="flex items-center justify-center gap-2 p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                onClick={isCameraActive ? handleCloseCamera : handleOpenCamera}
+                className={`flex items-center justify-center gap-2 p-2.5 border rounded-lg text-xs font-semibold transition-colors shadow-2xs ${
+                  isCameraActive
+                    ? 'bg-slate-100 border-slate-300 text-slate-800'
+                    : capturedImage
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
               >
                 <Camera className="w-4 h-4 text-slate-600" />
-                <span>📷 Add evidence</span>
+                <span>{capturedImage ? '📷 Evidence Attached' : '📷 Add evidence'}</span>
               </button>
             </div>
+
+            {/* Audio Recording Attachment Preview */}
+            {audioUrl && !isRecording && (
+              <div className="bg-blue-50/70 border border-blue-200 p-2.5 rounded-lg flex items-center justify-between gap-2 text-xs animate-fade-in">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <Mic className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="font-semibold text-slate-800 shrink-0 text-[11px]">Audio Note:</span>
+                  <audio src={audioUrl} controls className="h-7 w-full max-w-[180px]" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveAudio}
+                  className="text-slate-400 hover:text-rose-600 text-[11px] font-medium px-1.5 py-1 rounded transition-colors shrink-0"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+
+            {/* Live Camera Viewfinder Modal / Inline Preview */}
+            {isCameraActive && (
+              <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 space-y-2 text-white animate-fade-in">
+                <div className="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+                  <span className="font-bold flex items-center gap-1.5 text-slate-200">
+                    <Camera className="w-3.5 h-3.5 text-blue-400" />
+                    Live Camera Preview
+                  </span>
+                  <span className="text-[10px] text-slate-400">Position equipment in frame</span>
+                </div>
+
+                <div className="relative rounded-md overflow-hidden bg-black aspect-video flex items-center justify-center border border-slate-800">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleCapturePhoto}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <Camera className="w-4 h-4" />
+                    Capture Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseCamera}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-xs font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Captured Image Preview */}
+            {capturedImage && !isCameraActive && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex items-center justify-between gap-3 text-xs animate-fade-in">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img
+                    src={capturedImage}
+                    alt="Captured inspection evidence"
+                    className="w-12 h-12 rounded object-cover border border-slate-200 shrink-0"
+                  />
+                  <div>
+                    <span className="font-semibold text-slate-800 block">Inspection Evidence</span>
+                    <span className="text-[10px] text-slate-500">1 photo attached</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleOpenCamera}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Retake
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="text-xs text-slate-400 hover:text-rose-600 font-medium px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Primary Action Button */}
             <div className="pt-2">
