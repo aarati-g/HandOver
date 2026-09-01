@@ -94,6 +94,22 @@ export interface Handover {
   authorName?: string;
 }
 
+export interface AIAnalysisResult {
+  assetCode: string;
+  status: AssetStatus;
+  issue: string | null;
+  completed: string[];
+  pending: string[];
+  workaround: string | null;
+  rootCause: string | null;
+  operationalContext: string | null;
+  readinessScore: number;
+  readinessStatus: ReadinessStatus;
+  gap: HandoverGap;
+  unknowns: string[];
+  nextAction: string | null;
+}
+
 export interface HealthStatus {
   status: string;
   service: string;
