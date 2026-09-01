@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,12 +13,23 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = True
 
-    # CORS
+    # CORS Configuration
     FRONTEND_ORIGIN: str = "http://localhost:5173"
-    ADDITIONAL_ORIGINS: List[str] = ["http://127.0.0.1:5173", "http://localhost:3000"]
+    ADDITIONAL_ORIGINS: List[str] = [
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ]
+    CORS_ORIGINS: Optional[str] = None
 
     @property
     def cors_origins(self) -> List[str]:
+        if self.CORS_ORIGINS:
+            if self.CORS_ORIGINS.strip() == "*":
+                return ["*"]
+            return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
         origins = [self.FRONTEND_ORIGIN]
         origins.extend(self.ADDITIONAL_ORIGINS)
         return list(set(origins))

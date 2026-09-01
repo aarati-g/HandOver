@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Union
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -7,7 +7,12 @@ from sqlalchemy.orm import selectinload
 from app.db.database import get_db
 from app.db.models import Asset, Handover
 from app.schemas.asset import AssetCreate, AssetResponse
-from app.schemas.handover import HandoverHistoryItem, HandoverEventItem, OperationalState
+from app.schemas.handover import (
+    HandoverHistoryItem,
+    HandoverEventItem,
+    OperationalState,
+    OperationalEventSummary,
+)
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
 
@@ -54,53 +59,74 @@ async def create_asset(payload: AssetCreate, db: AsyncSession = Depends(get_db))
     return asset
 
 
-@router.get("/{asset_id}/history", response_model=List[HandoverHistoryItem])
-async def get_asset_history(asset_id: str, db: AsyncSession = Depends(get_db)):
-    """Retrieve historical handover records and event audit logs for a specific asset."""
+@router.get("/{asset_id}/history", response_model=List[OperationalEventSummary])
+async def get_asset_history(
+    asset_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retrieve chronological operational events for an asset (e.g. HANDOVER_CREATED, GAP_DETECTED, GAP_ANSWERED).
+    """
+    # Verify asset exists
+    asset_stmt = select(Asset).where(
+        (Asset.asset_code == asset_id) | (Asset.id == int(asset_id) if asset_id.isdigit() else False)
+    )
+    asset = (await db.execute(asset_stmt)).scalar_one_or_none()
+    if not asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Asset '{asset_id}' not found",
+        )
+
     stmt = (
         select(Handover)
         .options(selectinload(Handover.events))
-        .where(Handover.asset_id == asset_id)
-        .order_by(Handover.created_at.desc())
+        .where(Handover.asset_id == asset.asset_code)
+        .order_by(Handover.created_at.asc())
     )
     result = await db.execute(stmt)
     handovers = result.scalars().all()
 
-    items = []
+    chronological_events: List[OperationalEventSummary] = []
+
     for h in handovers:
-        op_state = OperationalState(
-            issue=h.issue,
-            current_status=h.current_status,
-            completed_actions=h.completed_actions or [],
-            pending_actions=h.pending_actions or [],
-            workaround=h.workaround,
-            root_cause=h.root_cause,
-            operational_context=h.operational_context,
-            risks=h.risks or [],
-            unknowns=h.unknowns or [],
-            next_action=h.next_action,
-            confidence=h.confidence or 1.0,
-        )
-        events = [
-            HandoverEventItem(
-                id=e.id,
-                handover_id=e.handover_id,
-                event_type=e.event_type,
-                details=e.details or {},
-                created_at=e.created_at,
+        if h.events:
+            for e in h.events:
+                # Determine clean human summary
+                summary = ""
+                if e.details and "summary" in e.details:
+                    summary = e.details["summary"]
+                elif e.event_type == "HANDOVER_CREATED":
+                    summary = h.issue or "Shift handover recorded"
+                elif e.event_type == "GAP_DETECTED":
+                    summary = (e.details or {}).get("reason") or (e.details or {}).get("question") or "Operating-load test not confirmed"
+                elif e.event_type == "GAP_ANSWERED":
+                    ans = (e.details or {}).get("answer") or ""
+                    summary = f"Clarification: {ans}" if ans else "Gap answered"
+                elif e.event_type == "READINESS_CHANGED":
+                    summary = f"Readiness evaluated at {(e.details or {}).get('new_score', h.readiness_score)}%"
+                else:
+                    summary = f"Event: {e.event_type}"
+
+                chronological_events.append(
+                    OperationalEventSummary(
+                        type=e.event_type,
+                        timestamp=e.created_at,
+                        summary=summary,
+                        details=e.details or {},
+                        handover_id=h.id,
+                    )
+                )
+        else:
+            # Fallback if no specific sub-events recorded
+            chronological_events.append(
+                OperationalEventSummary(
+                    type="HANDOVER_CREATED",
+                    timestamp=h.created_at,
+                    summary=h.issue or "Shift handover recorded",
+                    details={"raw_input": h.raw_input},
+                    handover_id=h.id,
+                )
             )
-            for e in (h.events or [])
-        ]
-        items.append(
-            HandoverHistoryItem(
-                id=h.id,
-                asset_id=h.asset_id,
-                raw_input=h.raw_input,
-                operational_state=op_state,
-                readiness_score=h.readiness_score,
-                readiness_status=h.readiness_status or "needs_attention",
-                events=events,
-                created_at=h.created_at,
-            )
-        )
-    return items
+
+    return chronological_events

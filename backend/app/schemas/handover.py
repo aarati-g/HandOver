@@ -107,6 +107,15 @@ class HandoverEventItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class OperationalEventSummary(BaseModel):
+    """Simple chronological operational event representation for frontend timeline."""
+    type: str = Field(description="Event type code e.g. HANDOVER_CREATED, GAP_DETECTED, GAP_ANSWERED")
+    timestamp: datetime = Field(description="Timestamp of the event")
+    summary: str = Field(description="Human-readable event summary")
+    details: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    handover_id: Optional[int] = None
+
+
 class HandoverHistoryItem(BaseModel):
     """Historical handover record representation."""
     id: int
@@ -119,3 +128,16 @@ class HandoverHistoryItem(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class HandoverDetailResponse(BaseModel):
+    """Complete detail response for a single handover record."""
+    id: int
+    asset_id: str
+    raw_input: str
+    operational_state: OperationalState
+    readiness: ReadinessDetail
+    readiness_score: int
+    gap: GapDetectionResult
+    events: List[HandoverEventItem] = Field(default_factory=list)
+    created_at: datetime

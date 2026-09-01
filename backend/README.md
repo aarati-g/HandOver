@@ -1,141 +1,330 @@
-# Handover Backend — Core Intelligence Engine
+# Handover Backend — Core Intelligence & API Specification
 
 FastAPI backend and AI Operational Memory Engine for **Handover** (iQOO Hackathon 2026).
 
-## Ownership
+---
 
-**Owner**: Developer 2
+## 1. Frontend Integration Guide
 
-### Scope & Boundaries
-- Domain logic: Operational state extraction, gap analysis, deterministic readiness scoring, state diffing
-- Database models (SQLAlchemy), async PostgreSQL/SQLite sessions, event audit logging
-- AI Service Layer (`google-genai` with swappable provider interface and offline fallback)
-- REST API endpoints (`/health`, `/api/assets`, `/api/handovers`)
-- Backend unit and integration tests
+### Base URL
+- **Local Development**: `http://localhost:8000`
+- **API Root**: `http://localhost:8000/api`
+- **Interactive OpenAPI Documentation**: `http://localhost:8000/docs`
+
+### CORS
+CORS is configured for standard local development ports:
+- `http://localhost:5173` (Vite dev server)
+- `http://127.0.0.1:5173`
+- `http://localhost:3000`
+- `http://localhost:4173`
+- Any custom origin via environment variable `CORS_ORIGINS="*"`.
 
 ---
 
-## Core Intelligence Flow
+## 2. API Endpoints & Contract
 
-```
-                      MESSY HUMAN INPUT
-                             ↓
-                      AI UNDERSTANDING
-                             ↓
-                STRUCTURED OPERATIONAL STATE
-                             ↓
-                   HANDOVER GAP DETECTION
-                             ↓
-                     TARGETED QUESTION
-                             ↓
-                        USER ANSWER
-                             ↓
-                 UPDATED OPERATIONAL STATE
-                             ↓
-                      READINESS SCORE
-                             ↓
-                      HANDOVER READY
-```
+### A. Asset Management
 
----
+#### `GET /api/assets`
+Retrieve all monitored industrial equipment assets.
 
-## Tech Stack
-- **Python 3.10+**
-- **FastAPI**: Async web framework with interactive Swagger OpenAPI documentation
-- **Pydantic v2**: Strict validation schemas for operational state contracts
-- **SQLAlchemy 2.0 (Async)**: PostgreSQL-ready ORM with local SQLite support for demo runs
-- **Google GenAI Python SDK**: Official SDK for Gemini extraction (`gemini-2.5-flash`)
-- **Pytest**: Automated test suite (13 integration and unit tests)
-
----
-
-## Key Modules & Architecture
-
-```
-backend/app/
-├── main.py                     # FastAPI application & startup lifecycle
-├── api/
-│   ├── __init__.py
-│   └── routes/
-│       ├── __init__.py
-│       ├── health.py           # GET /health
-│       ├── assets.py           # GET/POST /api/assets, /history
-│       └── handovers.py        # POST /api/handovers/analyze, /answer, /compare
-├── core/
-│   ├── __init__.py
-│   └── config.py               # Pydantic Settings & environment config
-├── db/
-│   ├── __init__.py
-│   ├── database.py             # Async database engine & demo seeder
-│   └── models.py               # Asset, Handover, HandoverEvent SQLAlchemy models
-├── schemas/
-│   ├── __init__.py
-│   ├── asset.py                # Asset schemas
-│   └── handover.py             # OperationalState (11 fields), Gaps, Readiness
-├── services/
-│   ├── __init__.py
-│   ├── gap_service.py          # Gap detection & question prioritization
-│   ├── handover_service.py     # Deterministic scoring, breakdown, & change detection
-│   └── ai/
-│       ├── __init__.py
-│       ├── base.py             # AIProvider abstract base class
-│       ├── gemini_provider.py  # GeminiProvider & MockFallbackAIProvider
-│       └── prompts.py          # Operational analyst instructions & safety taxonomy
-└── utils/
-    └── __init__.py
+**Response `200 OK`**:
+```json
+[
+  {
+    "id": 1,
+    "asset_code": "COMP-03",
+    "name": "Compressor #03",
+    "type": "Industrial Compressor",
+    "location": "Plant Floor A - Sector 2",
+    "status": "needs_attention",
+    "created_at": "2026-08-30T14:30:00Z",
+    "updated_at": "2026-08-30T14:30:00Z"
+  },
+  {
+    "id": 2,
+    "asset_code": "GEN-12",
+    "name": "Generator #12",
+    "type": "Backup Generator",
+    "location": "Substation B - Exterior",
+    "status": "operational",
+    "created_at": "2026-08-27T10:00:00Z",
+    "updated_at": "2026-09-01T12:00:00Z"
+  },
+  {
+    "id": 3,
+    "asset_code": "PUMP-07",
+    "name": "Pump #07",
+    "type": "Water Pump",
+    "location": "Water Treatment C",
+    "status": "operational",
+    "created_at": "2026-08-25T08:00:00Z",
+    "updated_at": "2026-08-31T09:00:00Z"
+  }
+]
 ```
 
+#### `GET /api/assets/{asset_id}`
+Retrieve a single asset by code (`COMP-03`) or integer ID.
+
+**Response `200 OK`**:
+```json
+{
+  "id": 1,
+  "asset_code": "COMP-03",
+  "name": "Compressor #03",
+  "type": "Industrial Compressor",
+  "location": "Plant Floor A - Sector 2",
+  "status": "needs_attention",
+  "created_at": "2026-08-30T14:30:00Z",
+  "updated_at": "2026-08-30T14:30:00Z"
+}
+```
+
+#### `GET /api/assets/{asset_id}/history`
+Retrieve chronological operational timeline events for an asset.
+
+**Response `200 OK`**:
+```json
+[
+  {
+    "type": "HANDOVER_CREATED",
+    "timestamp": "2026-08-30T14:30:00Z",
+    "summary": "Abnormal vibration reported",
+    "details": { "asset_id": "COMP-03" },
+    "handover_id": 1
+  },
+  {
+    "type": "GAP_DETECTED",
+    "timestamp": "2026-08-30T14:30:00Z",
+    "summary": "Operating-load test not confirmed",
+    "details": {
+      "question": "Was the compressor tested under normal operating load after the belt replacement?"
+    },
+    "handover_id": 1
+  },
+  {
+    "type": "GAP_ANSWERED",
+    "timestamp": "2026-08-30T16:00:00Z",
+    "summary": "Tested under normal load; vibration remained elevated",
+    "details": { "answer": "Tested under normal load; vibration remained elevated" },
+    "handover_id": 1
+  }
+]
+```
+
 ---
 
-## Readiness Scoring & Classifications
+### B. Core Handover Intelligence
 
-The readiness scoring system is deterministic and transparent:
+#### `POST /api/handovers/analyze`
+Extracts structured operational state from messy shift text, identifies critical information gaps, and calculates deterministic readiness.
 
-| Category | Max Weight | Criteria |
-|---|---|---|
-| **Current Status** | 20 | Operational state explicitly defined (`operational`, `needs_attention`, `degraded`, `offline`) |
-| **Issue** | 15 | Primary symptom or defect documented |
-| **Completed Actions** | 15 | Verified actions already taken |
-| **Pending Actions** | 15 | Unresolved steps documented |
-| **Operational Context** | 10 | Operating conditions, load %, or ambient factors recorded |
-| **Workaround** | 10 | Operating restrictions/limits defined (or not required if operational) |
-| **Next Action** | 5 | Specific immediate step defined for oncoming technician |
-| **Unknowns Identified** | 10 | Explicitly acknowledging unconfirmed assumptions is rewarded |
-| **Total** | **100** | Active unaddressed gaps reduce score; answering gaps increases readiness |
+**Request Payload**:
+```json
+{
+  "asset_id": "COMP-03",
+  "text": "Machine 03 has abnormal vibration. We replaced the belt, but the motor hasn't been inspected. It is currently operating below 70% load."
+}
+```
 
-### Readiness Lifecycle States
-- `0–49`: **incomplete**
-- `50–74`: **needs_attention**
-- `75–89`: **almost_ready**
-- `90–100`: **ready**
+**Response `200 OK`**:
+```json
+{
+  "handover_id": 2,
+  "asset_id": "COMP-03",
+  "operational_state": {
+    "issue": "Abnormal vibration",
+    "current_status": "needs_attention",
+    "completed_actions": ["Belt replaced"],
+    "pending_actions": ["Motor inspection"],
+    "workaround": "Operate below 70% load",
+    "root_cause": "Unknown",
+    "operational_context": "Reported operating below 70% load during shift",
+    "risks": [],
+    "unknowns": ["Root cause has not been confirmed"],
+    "next_action": "Inspect motor and verify vibration under normal operating load",
+    "confidence": 0.86
+  },
+  "readiness": {
+    "score": 72,
+    "status": "needs_attention",
+    "breakdown": {
+      "current_status": 20,
+      "issue": 15,
+      "completed_actions": 15,
+      "pending_actions": 15,
+      "operational_context": 5,
+      "workaround": 10,
+      "next_action": 5,
+      "unknowns": 1
+    }
+  },
+  "readiness_score": 72,
+  "gap": {
+    "detected": true,
+    "question": "Was the compressor tested under normal operating load after the belt replacement?",
+    "reason": "Belt replacement was completed but load testing verification was not reported.",
+    "severity": "medium"
+  }
+}
+```
 
 ---
 
-## API Summary
+#### `POST /api/handovers/{handover_id}/answer`
+Incorporates the technician's targeted answer into operational memory, re-evaluates gaps, recalculates readiness, and writes audit logs.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Service health status check |
-| `GET` | `/api/assets` | List all assets (auto-seeded: `COMP-03`, `GEN-12`, `PUMP-07`) |
-| `GET` | `/api/assets/{asset_id}` | Retrieve single asset details |
-| `POST` | `/api/assets` | Register a new equipment asset |
-| `POST` | `/api/handovers/analyze` | AI extraction, gap detection, and readiness score evaluation |
-| `POST` | `/api/handovers/{id}/answer` | Submit answer to gap question, update memory, recalculate readiness |
-| `POST` | `/api/handovers/compare` | Semantic state comparison ignoring wording-only differences |
-| `GET` | `/api/assets/{asset_id}/history` | Retrieve handover records and audit events for an asset |
+**Request Payload**:
+```json
+{
+  "answer": "Yes, it was tested under normal load and vibration remained elevated."
+}
+```
+
+**Response `200 OK`**:
+```json
+{
+  "handover_id": 2,
+  "asset_id": "COMP-03",
+  "operational_state": {
+    "issue": "Abnormal vibration",
+    "current_status": "needs_attention",
+    "completed_actions": [
+      "Belt replaced",
+      "Verification test: Yes, it was tested under normal load and vibration remained elevated."
+    ],
+    "pending_actions": ["Motor inspection"],
+    "workaround": "Operate below 70% load",
+    "root_cause": "Unknown",
+    "operational_context": "Reported operating below 70% load during shift | Verified under normal load: vibration remained elevated",
+    "risks": [],
+    "unknowns": ["Root cause has not been confirmed"],
+    "next_action": "Perform motor bearing & alignment inspection",
+    "confidence": 0.94
+  },
+  "readiness": {
+    "score": 94,
+    "status": "ready",
+    "breakdown": {
+      "current_status": 20,
+      "issue": 15,
+      "completed_actions": 15,
+      "pending_actions": 15,
+      "operational_context": 10,
+      "workaround": 10,
+      "next_action": 5,
+      "unknowns": 4
+    }
+  },
+  "readiness_score": 94,
+  "gap": {
+    "detected": false,
+    "question": null,
+    "reason": null,
+    "severity": null
+  }
+}
+```
 
 ---
 
-## Local Development & Testing
+#### `GET /api/handovers/{handover_id}`
+Retrieve a single complete handover record with audit events and full operational memory state.
 
-### 1. Run Server
+**Response `200 OK`**:
+```json
+{
+  "id": 2,
+  "asset_id": "COMP-03",
+  "raw_input": "Machine 03 has abnormal vibration...",
+  "operational_state": { ... },
+  "readiness": { "score": 94, "status": "ready", "breakdown": { ... } },
+  "readiness_score": 94,
+  "gap": { "detected": false, "question": null, "reason": null, "severity": null },
+  "events": [
+    { "id": 1, "handover_id": 2, "event_type": "HANDOVER_CREATED", "created_at": "..." },
+    { "id": 2, "handover_id": 2, "event_type": "GAP_DETECTED", "created_at": "..." },
+    { "id": 3, "handover_id": 2, "event_type": "GAP_ANSWERED", "created_at": "..." },
+    { "id": 4, "handover_id": 2, "event_type": "READINESS_CHANGED", "created_at": "..." }
+  ],
+  "created_at": "2026-08-30T14:30:00Z"
+}
+```
+
+---
+
+#### `POST /api/handovers/compare`
+Compares two operational states and returns semantic shifts (ignoring wording variations).
+
+**Request Payload**:
+```json
+{
+  "previous_state": {
+    "issue": "Normal operation",
+    "current_status": "operational",
+    "completed_actions": ["Routine check"],
+    "pending_actions": []
+  },
+  "current_state": {
+    "issue": "Abnormal vibration",
+    "current_status": "needs_attention",
+    "completed_actions": ["Belt replaced"],
+    "pending_actions": ["Motor inspection"]
+  }
+}
+```
+
+**Response `200 OK`**:
+```json
+{
+  "has_changes": true,
+  "changes": [
+    {
+      "field": "current_status",
+      "previous": "operational",
+      "current": "needs_attention",
+      "severity": "high"
+    },
+    {
+      "field": "issue",
+      "previous": "Normal operation",
+      "current": "Abnormal vibration",
+      "severity": "high"
+    },
+    {
+      "field": "pending_actions",
+      "previous": "None",
+      "current": "Motor inspection",
+      "severity": "medium"
+    }
+  ]
+}
+```
+
+---
+
+## 3. Error Handling
+
+Standardized HTTP error envelopes:
+```json
+{
+  "detail": "Asset 'INVALID-01' not found"
+}
+```
+
+- `400 Bad Request`: Invalid payload or duplicate asset code.
+- `404 Not Found`: Asset or Handover ID does not exist.
+- `500 Internal Server Error`: Internal service error (falls back to deterministic AI provider automatically without exposing internal keys or traces).
+
+---
+
+## 4. Running Backend Locally
+
 ```bash
-uvicorn app.main:app --reload --port 8000
+# In backend/
+.\venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
-- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health: [http://localhost:8000/health](http://localhost:8000/health)
-
-### 2. Run Tests
-```bash
-pytest
-```
+- API Root: `http://localhost:8000/api`
+- OpenAPI Docs: `http://localhost:8000/docs`
+- Health check: `http://localhost:8000/health`

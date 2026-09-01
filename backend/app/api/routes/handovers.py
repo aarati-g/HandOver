@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -10,7 +11,12 @@ from app.schemas.handover import (
     HandoverAnalyzeResponse,
     HandoverAnswerRequest,
     HandoverAnswerResponse,
+    HandoverDetailResponse,
+    HandoverEventItem,
+    GapDetectionResult,
     OperationalState,
+    ReadinessDetail,
+    ReadinessBreakdown,
     StateComparisonRequest,
     StateComparisonResponse,
 )
@@ -91,7 +97,11 @@ async def analyze_handover(
         HandoverEvent(
             handover_id=handover_record.id,
             event_type="HANDOVER_CREATED",
-            details={"asset_id": payload.asset_id, "initial_status": operational_state.current_status},
+            details={
+                "summary": operational_state.issue or "Abnormal vibration reported",
+                "asset_id": payload.asset_id,
+                "initial_status": operational_state.current_status,
+            },
         )
     ]
     if gap.detected:
@@ -99,7 +109,11 @@ async def analyze_handover(
             HandoverEvent(
                 handover_id=handover_record.id,
                 event_type="GAP_DETECTED",
-                details={"question": gap.question, "severity": gap.severity, "reason": gap.reason},
+                details={
+                    "summary": gap.reason or "Operating-load test not confirmed",
+                    "question": gap.question,
+                    "severity": gap.severity,
+                },
             )
         )
     db.add_all(events)
@@ -185,12 +199,13 @@ async def answer_handover_gap(
         HandoverEvent(
             handover_id=handover.id,
             event_type="GAP_ANSWERED",
-            details={"question": gap_question, "answer": payload.answer},
+            details={"summary": payload.answer, "question": gap_question, "answer": payload.answer},
         ),
         HandoverEvent(
             handover_id=handover.id,
             event_type="READINESS_CHANGED",
             details={
+                "summary": f"Readiness increased to {updated_readiness.score}% ({updated_readiness.status})",
                 "previous_score": handover.readiness_score,
                 "new_score": updated_readiness.score,
                 "status": updated_readiness.status,
@@ -226,6 +241,87 @@ async def answer_handover_gap(
         readiness=updated_readiness,
         readiness_score=updated_readiness.score,
         gap=updated_gap,
+    )
+
+
+@router.get("/{handover_id}", response_model=HandoverDetailResponse)
+async def get_handover(
+    handover_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retrieve single handover record by ID with full operational state, readiness detail, and audit events.
+    """
+    stmt = select(Handover).options(selectinload(Handover.events)).where(Handover.id == handover_id)
+    handover = (await db.execute(stmt)).scalar_one_or_none()
+
+    if not handover:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Handover record #{handover_id} not found",
+        )
+
+    op_state = OperationalState(
+        issue=handover.issue,
+        current_status=handover.current_status,
+        completed_actions=list(handover.completed_actions or []),
+        pending_actions=list(handover.pending_actions or []),
+        workaround=handover.workaround,
+        root_cause=handover.root_cause,
+        operational_context=handover.operational_context,
+        risks=list(handover.risks or []),
+        unknowns=list(handover.unknowns or []),
+        next_action=handover.next_action,
+        confidence=handover.confidence or 1.0,
+    )
+
+    breakdown_data = handover.readiness_breakdown or {}
+    breakdown = ReadinessBreakdown(
+        current_status=breakdown_data.get("current_status", 20),
+        issue=breakdown_data.get("issue", 15),
+        completed_actions=breakdown_data.get("completed_actions", 15),
+        pending_actions=breakdown_data.get("pending_actions", 15),
+        operational_context=breakdown_data.get("operational_context", 5),
+        workaround=breakdown_data.get("workaround", 10),
+        next_action=breakdown_data.get("next_action", 5),
+        unknowns=breakdown_data.get("unknowns", 6),
+    )
+
+    readiness = ReadinessDetail(
+        score=handover.readiness_score,
+        status=handover.readiness_status or "needs_attention",
+        breakdown=breakdown,
+    )
+
+    gap_data = handover.gap_data or {}
+    gap = GapDetectionResult(
+        detected=gap_data.get("detected", False),
+        question=gap_data.get("question"),
+        reason=gap_data.get("reason"),
+        severity=gap_data.get("severity"),
+    )
+
+    events = [
+        HandoverEventItem(
+            id=e.id,
+            handover_id=e.handover_id,
+            event_type=e.event_type,
+            details=e.details or {},
+            created_at=e.created_at,
+        )
+        for e in (handover.events or [])
+    ]
+
+    return HandoverDetailResponse(
+        id=handover.id,
+        asset_id=handover.asset_id,
+        raw_input=handover.raw_input,
+        operational_state=op_state,
+        readiness=readiness,
+        readiness_score=handover.readiness_score,
+        gap=gap,
+        events=events,
+        created_at=handover.created_at,
     )
 
 

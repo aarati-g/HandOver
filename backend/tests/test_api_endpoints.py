@@ -15,6 +15,7 @@ def test_list_and_get_assets():
         res_single = client.get("/api/assets/COMP-03")
         assert res_single.status_code == 200
         assert res_single.json()["name"] == "Compressor #03"
+        assert res_single.json()["type"] == "Industrial Compressor"
 
 
 def test_end_to_end_comp03_scenario():
@@ -75,20 +76,27 @@ def test_end_to_end_comp03_scenario():
         updated_completed = ans_data["operational_state"]["completed_actions"]
         assert any("tested" in act.lower() for act in updated_completed)
 
-        # Step 3: Verify history and audit trail
-        res_hist = client.get("/api/assets/COMP-03/history")
-        assert res_hist.status_code == 200
-        history = res_hist.json()
-        assert len(history) >= 1
-        latest = history[0]
-        assert latest["id"] == handover_id
-
-        # Verify events logged
-        event_types = [e["event_type"] for e in latest["events"]]
+        # Step 3: Verify single handover detail endpoint
+        res_detail = client.get(f"/api/handovers/{handover_id}")
+        assert res_detail.status_code == 200
+        detail_data = res_detail.json()
+        assert detail_data["id"] == handover_id
+        assert detail_data["readiness_score"] >= 90
+        event_types = [e["event_type"] for e in detail_data["events"]]
         assert "HANDOVER_CREATED" in event_types
         assert "GAP_DETECTED" in event_types
         assert "GAP_ANSWERED" in event_types
         assert "READINESS_CHANGED" in event_types
+
+        # Step 4: Verify chronological asset history timeline endpoint
+        res_hist = client.get("/api/assets/COMP-03/history")
+        assert res_hist.status_code == 200
+        history_events = res_hist.json()
+        assert len(history_events) >= 1
+        hist_types = [e["type"] for e in history_events]
+        assert "HANDOVER_CREATED" in hist_types
+        assert "GAP_DETECTED" in hist_types
+        assert "GAP_ANSWERED" in hist_types
 
 
 def test_compare_operational_states_endpoint():
