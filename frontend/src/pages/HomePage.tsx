@@ -1,109 +1,121 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, ArrowRight, Clock } from 'lucide-react';
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, StatusBadge, Badge } from '@/components';
-import { mockAssets } from '@/data';
+import { PlusCircle, ArrowRight, AlertTriangle, Clock, Layers, User } from 'lucide-react';
+import { Button, Card, StatusBadge, Badge } from '@/components';
+import { mockAssets, mockRecentHandovers } from '@/data';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
+  // Find the critical attention asset (Compressor #03)
+  const attentionAsset = mockAssets.find((a) => a.status === 'needs_attention') || mockAssets[0];
+
   return (
     <div className="space-y-5">
-      {/* Shift Overview Banner */}
-      <div className="bg-slate-900 text-white rounded-xl p-4 shadow-sm relative overflow-hidden">
-        <div className="relative z-10 space-y-3">
-          <div className="flex items-center justify-between">
-            <Badge variant="outline" size="sm" className="text-slate-300 border-slate-700 bg-slate-800/60">
-              Shift Active &bull; Plant Floor A
-            </Badge>
-            <span className="text-[11px] text-slate-400 font-mono">iQOO AI Core</span>
+      {/* Dashboard Brand Header & Hero Area */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">HANDOVER</h1>
+              <Badge variant="brand" size="sm" className="font-mono text-[10px]">
+                iQOO AI
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Your operational memory</p>
           </div>
+          {/* Subtle profile avatar placeholder */}
+          <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-600 shadow-2xs">
+            <User className="w-4 h-4" />
+          </div>
+        </div>
 
-          <div className="space-y-1">
-            <h2 className="text-lg font-bold tracking-tight">Preserve Operational State</h2>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Capture messy shift knowledge. AI extracts structured state, detects gaps, and validates readiness for the next technician.
-            </p>
-          </div>
-
-          <div className="pt-1 flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<PlusCircle className="w-4 h-4" />}
-              onClick={() => navigate('/handover/new')}
-            >
-              Start Handover
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white"
-              onClick={() => navigate('/assets')}
-            >
-              View Assets
-            </Button>
-          </div>
+        {/* Hero Quick Action Bar */}
+        <div className="grid grid-cols-2 gap-2.5 pt-1">
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<PlusCircle className="w-4 h-4" />}
+            onClick={() => navigate('/handover/new')}
+            className="w-full justify-center shadow-xs"
+          >
+            + New Handover
+          </Button>
+          <Button
+            variant="outline"
+            size="md"
+            leftIcon={<Layers className="w-4 h-4 text-slate-600" />}
+            onClick={() => navigate('/assets')}
+            className="w-full justify-center"
+          >
+            View Assets
+          </Button>
         </div>
       </div>
 
-      {/* Critical Handover Attention Card (Demo COMP-03) */}
+      {/* Attention Required Section */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Active Attention Handover
-          </h3>
-          <span className="text-xs text-blue-600 font-medium">1 in progress</span>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+            ATTENTION REQUIRED
+          </h2>
+          <span className="text-[11px] text-amber-800 font-medium">1 action needed</span>
         </div>
 
         <Card
           variant="interactive"
-          onClick={() => navigate('/handover/HO-101')}
-          className="border-amber-200/80 bg-amber-50/30"
+          onClick={() => navigate(`/assets/${attentionAsset.assetCode}`)}
+          className="border-amber-300 bg-amber-50/50 shadow-2xs"
         >
-          <CardHeader className="pb-1">
+          <div className="p-3.5 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                  COMP-03
-                </span>
-                <StatusBadge status="needs_attention" size="sm" />
-              </div>
-              <span className="text-xs font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full">
-                72% Ready
+              <span className="font-mono text-xs font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-amber-200">
+                {attentionAsset.assetCode}
               </span>
+              <StatusBadge status="needs_attention" size="sm" />
             </div>
-            <CardTitle className="text-sm mt-1">Compressor #03 &bull; Abnormal vibration</CardTitle>
-            <CardDescription className="line-clamp-2">
-              Belt replaced, motor pending inspection. Gap detected: Load test verification unconfirmed.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 mt-2">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              Updated 10m ago
-            </span>
-            <span className="text-blue-600 font-medium flex items-center gap-1">
-              Review Readiness <ArrowRight className="w-3.5 h-3.5" />
-            </span>
-          </CardContent>
+
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">{attentionAsset.name}</h3>
+              <p className="text-xs font-medium text-amber-900 mt-0.5">Abnormal vibration</p>
+              <p className="text-xs text-slate-600 mt-0.5">Motor inspection pending</p>
+            </div>
+
+            <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-slate-400" />
+                Updated {attentionAsset.lastUpdated}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white border-amber-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/assets/${attentionAsset.assetCode}`);
+                }}
+              >
+                Review
+              </Button>
+            </div>
+          </div>
         </Card>
       </div>
 
-      {/* Asset Overview List */}
+      {/* Assets Section */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Monitored Equipment ({mockAssets.length})
-          </h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-slate-500 hover:text-slate-900"
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            ASSETS ({mockAssets.length})
+          </h2>
+          <button
+            type="button"
             onClick={() => navigate('/assets')}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
           >
-            All Assets <ArrowRight className="w-3 h-3 ml-1" />
-          </Button>
+            View all <ArrowRight className="w-3 h-3" />
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -114,22 +126,62 @@ export const HomePage: React.FC = () => {
               onClick={() => navigate(`/assets/${asset.assetCode}`)}
             >
               <div className="p-3.5 flex items-center justify-between gap-3">
-                <div className="space-y-1 min-w-0">
+                <div className="space-y-0.5 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-slate-900">
-                      {asset.assetCode}
-                    </span>
-                    <StatusBadge status={asset.status} size="sm" />
+                    <h3 className="text-sm font-semibold text-slate-900 truncate">
+                      {asset.name}
+                    </h3>
                   </div>
-                  <h4 className="text-sm font-medium text-slate-800 truncate">{asset.name}</h4>
-                  <p className="text-xs text-slate-400 truncate">{asset.location}</p>
+                  <p className="text-xs text-slate-500">
+                    Type: {asset.type}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Last updated: {asset.lastUpdated}
+                  </p>
                 </div>
 
+                <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                  <StatusBadge status={asset.status} size="sm" />
+                  <ArrowRight className="w-4 h-4 text-slate-300" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Handovers Section */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            RECENT HANDOVERS
+          </h2>
+          <button
+            type="button"
+            onClick={() => navigate('/history')}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+          >
+            History <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {mockRecentHandovers.map((event) => (
+            <Card
+              key={event.id}
+              variant="interactive"
+              onClick={() => navigate(`/handover/${event.handoverId}`)}
+            >
+              <div className="p-3 flex items-center justify-between gap-3 text-xs">
+                <div className="min-w-0">
+                  <h4 className="font-semibold text-slate-800">{event.assetName}</h4>
+                  <p className="text-slate-500 mt-0.5">{event.title}</p>
+                </div>
                 <div className="text-right shrink-0">
-                  <span className="text-[11px] text-slate-400 block font-mono">
-                    {asset.lastUpdated}
+                  <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {event.timeLabel}
                   </span>
-                  <ArrowRight className="w-4 h-4 text-slate-300 ml-auto mt-1" />
                 </div>
               </div>
             </Card>

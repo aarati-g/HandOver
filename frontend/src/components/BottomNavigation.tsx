@@ -1,13 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Layers, PlusCircle } from 'lucide-react';
+import { Home, Layers, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const BottomNavigation: React.FC = () => {
   const navItems = [
     { to: '/', label: 'Home', icon: Home, end: true },
     { to: '/assets', label: 'Assets', icon: Layers, end: false },
-    { to: '/handover/new', label: 'New Handover', icon: PlusCircle, end: false },
+    { to: '/history', label: 'History', icon: Clock, end: false },
   ];
 
   return (

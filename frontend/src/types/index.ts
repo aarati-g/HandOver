@@ -4,6 +4,22 @@ export type ReadinessStatus = 'incomplete' | 'needs_attention' | 'almost_ready' 
 
 export type GapSeverity = 'low' | 'medium' | 'high';
 
+export interface OperationalHistoryItem {
+  id: string;
+  timeLabel: string; // e.g. "Today", "Yesterday", "2 days ago"
+  event: string; // e.g. "Status checked", "Belt replacement recorded", "Abnormal vibration reported"
+  type?: 'status' | 'maintenance' | 'issue' | 'handover';
+}
+
+export interface RecentHandoverEvent {
+  id: string;
+  assetCode: string;
+  assetName: string;
+  title: string;
+  timeLabel: string;
+  handoverId: string;
+}
+
 export interface Asset {
   id: string;
   assetCode: string;
@@ -13,7 +29,9 @@ export interface Asset {
   status: AssetStatus;
   lastUpdated: string;
   description?: string;
+  whatHappened?: string;
   activeHandoverId?: string;
+  history?: OperationalHistoryItem[];
 }
 
 export interface OperationalState {

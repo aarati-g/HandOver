@@ -4,3 +4,4 @@ export * from './AssetDetailPage';
 export * from './NewHandoverPage';
 export * from './HandoverDetailPage';
 export * from './NextWorkerPage';
+export * from './HistoryPage';

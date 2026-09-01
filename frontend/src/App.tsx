@@ -7,6 +7,7 @@ import {
   NewHandoverPage,
   HandoverDetailPage,
   NextWorkerPage,
+  HistoryPage,
 } from '@/pages';
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/handover/new" element={<NewHandoverPage />} />
           <Route path="/handover/:handoverId" element={<HandoverDetailPage />} />
           <Route path="/handover/:handoverId/next-worker" element={<NextWorkerPage />} />
+          <Route path="/history" element={<HistoryPage />} />
           {/* Fallback to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Sparkles, ArrowRight } from 'lucide-react';
 import { PageHeader, Card, CardContent, Button, TextArea, Badge } from '@/components';
 import { mockAssets } from '@/data';
 
 export const NewHandoverPage: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedAsset, setSelectedAsset] = useState('COMP-03');
+  const [searchParams] = useSearchParams();
+  const assetQuery = searchParams.get('asset');
+
+  const [selectedAsset, setSelectedAsset] = useState(assetQuery || 'COMP-03');
   const [rawText, setRawText] = useState(
     'Machine 03 has abnormal vibration. We replaced the belt, but the motor hasn\'t been inspected. It is currently operating below 70% load.'
   );
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (assetQuery) {
+      setSelectedAsset(assetQuery);
+    }
+  }, [assetQuery]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
