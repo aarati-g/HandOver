@@ -9,9 +9,14 @@ import type {
 } from '@/types';
 import { mockAssets, mockHandovers } from '@/data';
 
-const RAW_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-// Normalize base url to always have /api prefix
-const API_BASE = RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL.replace(/\/$/, '')}/api`;
+const RAW_API_URL = import.meta.env.VITE_API_URL !== undefined
+  ? import.meta.env.VITE_API_URL
+  : (import.meta.env.PROD ? '' : 'http://localhost:8000');
+
+// Normalize base url: relative /api for single-service production, or full URL in dev/override
+const API_BASE = RAW_API_URL
+  ? (RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL.replace(/\/$/, '')}/api`)
+  : '/api';
 
 /**
  * Robust fetch wrapper that calls FastAPI backend and falls back cleanly

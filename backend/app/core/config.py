@@ -11,7 +11,10 @@ class Settings(BaseSettings):
     # Server configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    DEBUG: bool = True
+    DEBUG: bool = False
+
+    # Frontend Static Dist directory path override
+    FRONTEND_DIST_DIR: Optional[str] = None
 
     # CORS Configuration
     FRONTEND_ORIGIN: str = "http://localhost:5173"
@@ -30,7 +33,7 @@ class Settings(BaseSettings):
             if self.CORS_ORIGINS.strip() == "*":
                 return ["*"]
             return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
-        origins = [self.FRONTEND_ORIGIN]
+        origins = ["*"] if self.FRONTEND_ORIGIN == "*" else [self.FRONTEND_ORIGIN]
         origins.extend(self.ADDITIONAL_ORIGINS)
         return list(set(origins))
 
