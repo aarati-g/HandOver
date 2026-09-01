@@ -1,0 +1,81 @@
+import type { Asset, Handover } from '@/types';
+
+export const mockAssets: Asset[] = [
+  {
+    id: '1',
+    assetCode: 'COMP-03',
+    name: 'Compressor #03',
+    type: 'Rotary Screw Compressor',
+    location: 'Plant Floor A - Sector 2',
+    status: 'needs_attention',
+    lastUpdated: '10 mins ago',
+    description: 'Main air supply compressor for manufacturing line 2.',
+    activeHandoverId: 'HO-101',
+  },
+  {
+    id: '2',
+    assetCode: 'GEN-12',
+    name: 'Generator #12',
+    type: 'Diesel Backup Generator',
+    location: 'Substation B - Exterior',
+    status: 'operational',
+    lastUpdated: '2 hours ago',
+    description: 'Primary emergency power unit for cleanroom critical loads.',
+  },
+  {
+    id: '3',
+    assetCode: 'PUMP-07',
+    name: 'Pump #07',
+    type: 'Centrifugal Slurry Pump',
+    location: 'Water Treatment C',
+    status: 'operational',
+    lastUpdated: 'Yesterday',
+    description: 'Sludge recirculation pump with mechanical packing seal.',
+  },
+];
+
+export const mockHandovers: Record<string, Handover> = {
+  'HO-101': {
+    id: 'HO-101',
+    assetId: '1',
+    assetCode: 'COMP-03',
+    assetName: 'Compressor #03',
+    rawInput: 'Machine 03 has abnormal vibration. We replaced the belt, but the motor hasn\'t been inspected. It is currently operating below 70% load.',
+    authorName: 'Alex Mercer (Shift 1)',
+    createdAt: '2026-09-01T14:30:00Z',
+    updatedAt: '2026-09-01T14:35:00Z',
+    operationalState: {
+      issue: 'Abnormal vibration',
+      currentStatus: 'needs_attention',
+      completedActions: ['Belt replaced'],
+      pendingActions: ['Motor inspection', 'Vibration spectrum analysis'],
+      workaround: 'Operate below 70% load',
+      rootCause: 'Unknown',
+      operationalContext: 'Reported operating below 70% load during shift 1',
+      risks: ['Potential bearing fatigue if run above 75% load'],
+      unknowns: ['Root cause has not been confirmed', 'Post-replacement load test unverified'],
+      nextAction: 'Inspect motor alignment and check bearing temperature under load',
+      confidence: 0.86,
+    },
+    gap: {
+      detected: true,
+      question: 'Was the machine tested under normal operating load after the belt replacement?',
+      reason: 'Belt replacement was completed but load testing verification was not reported.',
+      severity: 'medium',
+    },
+    readiness: {
+      score: 72,
+      status: 'needs_attention',
+      breakdown: {
+        currentStatus: 20,
+        issue: 15,
+        completedActions: 15,
+        pendingActions: 15,
+        operationalContext: 5,
+        workaround: 10,
+        nextAction: 3,
+        unknowns: 4,
+      },
+    },
+  },
+};
