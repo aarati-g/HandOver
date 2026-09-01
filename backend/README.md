@@ -1,85 +1,117 @@
 # Handover Backend
 
-This directory contains the FastAPI backend service for the **Handover** project (AI Operational Memory for the Next Person).
+This directory contains the FastAPI backend and AI layer for **Handover** (AI Operational Memory for the Next Person).
 
 ## Ownership
 
 **Owner**: Developer 2
 
 ### Scope & Boundaries
-- Database models, schema design, and pgvector integrations
-- REST API endpoints and middleware
-- AI service integrations (configurable, provider-agnostic abstractions)
+- Database models (SQLAlchemy), async PostgreSQL/SQLite sessions
+- REST API endpoints (`/health`, `/api/assets`, `/api/handovers`)
+- AI Service Layer (`google-genai` with swappable provider interface and offline fallback)
+- Gap Detection service & deterministic Readiness Scoring service
+- State Change Detection
 - Backend unit and integration tests
 
 ---
 
 ## Tech Stack
 - **Python 3.10+**
-- **FastAPI**: High-performance async web framework
-- **Pydantic v2**: Data validation and settings management
-- **SQLAlchemy 2.0**: Async ORM
-- **PostgreSQL + pgvector**: Vector-enabled operational memory storage
-- **Pytest**: Testing suite
+- **FastAPI**: Modern async web framework with Swagger OpenAPI documentation
+- **Pydantic v2**: Strict validation schemas for operational states
+- **SQLAlchemy 2.0 (Async)**: PostgreSQL-ready ORM with zero-config SQLite support for local demos
+- **Google GenAI Python SDK**: Official SDK for Gemini extraction (`gemini-2.5-flash`)
+- **Pytest**: Automated test suite
+
+---
+
+## Architecture
+
+```
+backend/app/
+├── main.py                     # FastAPI application & startup lifecycle
+├── api/
+│   ├── __init__.py
+│   └── routes/
+│       ├── __init__.py
+│       ├── health.py           # GET /health
+│       ├── assets.py           # GET/POST /api/assets, history
+│       └── handovers.py        # POST /api/handovers/analyze, /answer
+├── core/
+│   ├── __init__.py
+│   └── config.py               # Pydantic Settings & environment config
+├── db/
+│   ├── __init__.py
+│   ├── database.py             # Async database session & seeder
+│   └── models.py               # Asset & Handover SQLAlchemy models
+├── schemas/
+│   ├── __init__.py
+│   ├── asset.py                # Asset schemas
+│   └── handover.py             # OperationalState, Gaps, Answers
+├── services/
+│   ├── __init__.py
+│   ├── gap_service.py          # Missing knowledge gap detection
+│   ├── handover_service.py     # Deterministic readiness scoring & change detection
+│   └── ai/
+│       ├── __init__.py
+│       ├── base.py             # AIProvider abstract base class
+│       ├── gemini_provider.py  # GeminiProvider & MockFallbackAIProvider
+│       └── prompts.py          # System instructions & knowledge taxonomy
+└── utils/
+    └── __init__.py
+```
 
 ---
 
 ## Getting Started
 
-### 1. Virtual Environment Setup
+### 1. Virtual Environment & Dependencies
 ```bash
-# Create virtual environment
 python -m venv venv
 
-# Activate virtual environment
-# Windows:
+# Windows
 .\venv\Scripts\activate
-# Linux/macOS:
+# Linux/macOS
 source venv/bin/activate
-```
 
-### 2. Install Dependencies
-```bash
 pip install -r requirements.txt
 ```
 
-### 3. Environment Configuration
-Copy `.env.example` to `.env` in the root or backend directory and configure variables:
+### 2. Environment Variables
+Copy `.env.example` to `.env` in project root:
 ```bash
 cp ../.env.example .env
 ```
+Key variables:
+- `GEMINI_API_KEY`: Google GenAI API key (if omitted, backend seamlessly runs in offline deterministic demo mode)
+- `GEMINI_MODEL`: Defaults to `gemini-2.5-flash`
+- `DATABASE_URL`: `sqlite+aiosqlite:///./handover.db` (or PostgreSQL connection URL)
+- `FRONTEND_ORIGIN`: `http://localhost:5173`
 
-### 4. Run the Development Server
+### 3. Run the Backend
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
+- **Base URL**: `http://localhost:8000`
+- **Health Check**: `http://localhost:8000/health`
+- **Swagger Docs**: `http://localhost:8000/docs`
 
-The API will be available at:
-- **API Base**: [http://localhost:8000](http://localhost:8000)
-- **Interactive Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
-
-### 5. Run Tests
+### 4. Run Tests
 ```bash
 pytest
 ```
 
 ---
 
-## Architecture & Directory Structure
-```
-backend/
-├── app/
-│   ├── api/          # Endpoint routers and handlers
-│   ├── core/         # Settings, security, and global configuration
-│   ├── db/           # Database sessions, base models, pgvector config
-│   ├── models/       # SQLAlchemy database models
-│   ├── schemas/      # Pydantic request/response schemas
-│   ├── services/     # Business logic & AI abstractions
-│   │   └── ai/       # Replaceable LLM provider services (OpenAI, Anthropic, Ollama, Local)
-│   ├── utils/        # Helper functions and utilities
-│   └── main.py       # FastAPI application entrypoint
-├── tests/            # Automated test suite
-├── requirements.txt  # Python package dependencies
-└── README.md         # Backend documentation
-```
+## API Summary
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Service health status check |
+| `GET` | `/api/assets` | List all assets (auto-seeded with `COMP-03`, `GEN-12`, `PUMP-07`) |
+| `GET` | `/api/assets/{asset_id}` | Retrieve single asset details |
+| `POST` | `/api/assets` | Register a new asset |
+| `POST` | `/api/handovers/analyze` | AI extraction of messy input into structured operational state & gap detection |
+| `POST` | `/api/handovers/{id}/answer` | Answer a detected gap question, recalculate readiness |
+| `GET` | `/api/assets/{asset_id}/history` | Retrieve handover history for an asset |

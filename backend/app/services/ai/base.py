@@ -1,19 +1,28 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Optional, Dict, Any
+from app.schemas.handover import OperationalState
 
 
-class BaseAIService(ABC):
+class AIProvider(ABC):
     """
-    Abstract Base Class for Handover AI Services.
-    Allows swappable AI providers (OpenAI, Anthropic, Ollama, local models).
+    Abstract Base Interface for Handover AI Services.
+    Decouples routes and domain logic from specific LLM vendors (Gemini, Local/Ollama, Open Source).
     """
 
     @abstractmethod
-    async def process_text(self, prompt: str, **kwargs: Any) -> Dict[str, Any]:
-        """Process unstructured handover text into structured operational memory."""
-        pass
-
-    @abstractmethod
-    async def generate_embedding(self, text: str) -> list[float]:
-        """Generate vector embeddings for semantic retrieval (pgvector ready)."""
+    async def analyze_handover(
+        self,
+        text: str,
+        asset_context: Optional[Dict[str, Any]] = None,
+    ) -> OperationalState:
+        """
+        Analyze unstructured technician knowledge and extract structured operational state.
+        
+        Args:
+            text: Messy notes, transcript, or observation text.
+            asset_context: Optional metadata about the target asset (name, type, location).
+            
+        Returns:
+            OperationalState: Validated structured operational state.
+        """
         pass
