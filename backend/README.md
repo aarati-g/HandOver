@@ -1,32 +1,55 @@
-# Handover Backend
+# Handover Backend — Core Intelligence Engine
 
-This directory contains the FastAPI backend and AI layer for **Handover** (AI Operational Memory for the Next Person).
+FastAPI backend and AI Operational Memory Engine for **Handover** (iQOO Hackathon 2026).
 
 ## Ownership
 
 **Owner**: Developer 2
 
 ### Scope & Boundaries
-- Database models (SQLAlchemy), async PostgreSQL/SQLite sessions
-- REST API endpoints (`/health`, `/api/assets`, `/api/handovers`)
+- Domain logic: Operational state extraction, gap analysis, deterministic readiness scoring, state diffing
+- Database models (SQLAlchemy), async PostgreSQL/SQLite sessions, event audit logging
 - AI Service Layer (`google-genai` with swappable provider interface and offline fallback)
-- Gap Detection service & deterministic Readiness Scoring service
-- State Change Detection
+- REST API endpoints (`/health`, `/api/assets`, `/api/handovers`)
 - Backend unit and integration tests
+
+---
+
+## Core Intelligence Flow
+
+```
+                      MESSY HUMAN INPUT
+                             ↓
+                      AI UNDERSTANDING
+                             ↓
+                STRUCTURED OPERATIONAL STATE
+                             ↓
+                   HANDOVER GAP DETECTION
+                             ↓
+                     TARGETED QUESTION
+                             ↓
+                        USER ANSWER
+                             ↓
+                 UPDATED OPERATIONAL STATE
+                             ↓
+                      READINESS SCORE
+                             ↓
+                      HANDOVER READY
+```
 
 ---
 
 ## Tech Stack
 - **Python 3.10+**
-- **FastAPI**: Modern async web framework with Swagger OpenAPI documentation
-- **Pydantic v2**: Strict validation schemas for operational states
-- **SQLAlchemy 2.0 (Async)**: PostgreSQL-ready ORM with zero-config SQLite support for local demos
+- **FastAPI**: Async web framework with interactive Swagger OpenAPI documentation
+- **Pydantic v2**: Strict validation schemas for operational state contracts
+- **SQLAlchemy 2.0 (Async)**: PostgreSQL-ready ORM with local SQLite support for demo runs
 - **Google GenAI Python SDK**: Official SDK for Gemini extraction (`gemini-2.5-flash`)
-- **Pytest**: Automated test suite
+- **Pytest**: Automated test suite (13 integration and unit tests)
 
 ---
 
-## Architecture
+## Key Modules & Architecture
 
 ```
 backend/app/
@@ -36,71 +59,55 @@ backend/app/
 │   └── routes/
 │       ├── __init__.py
 │       ├── health.py           # GET /health
-│       ├── assets.py           # GET/POST /api/assets, history
-│       └── handovers.py        # POST /api/handovers/analyze, /answer
+│       ├── assets.py           # GET/POST /api/assets, /history
+│       └── handovers.py        # POST /api/handovers/analyze, /answer, /compare
 ├── core/
 │   ├── __init__.py
 │   └── config.py               # Pydantic Settings & environment config
 ├── db/
 │   ├── __init__.py
-│   ├── database.py             # Async database session & seeder
-│   └── models.py               # Asset & Handover SQLAlchemy models
+│   ├── database.py             # Async database engine & demo seeder
+│   └── models.py               # Asset, Handover, HandoverEvent SQLAlchemy models
 ├── schemas/
 │   ├── __init__.py
 │   ├── asset.py                # Asset schemas
-│   └── handover.py             # OperationalState, Gaps, Answers
+│   └── handover.py             # OperationalState (11 fields), Gaps, Readiness
 ├── services/
 │   ├── __init__.py
-│   ├── gap_service.py          # Missing knowledge gap detection
-│   ├── handover_service.py     # Deterministic readiness scoring & change detection
+│   ├── gap_service.py          # Gap detection & question prioritization
+│   ├── handover_service.py     # Deterministic scoring, breakdown, & change detection
 │   └── ai/
 │       ├── __init__.py
 │       ├── base.py             # AIProvider abstract base class
 │       ├── gemini_provider.py  # GeminiProvider & MockFallbackAIProvider
-│       └── prompts.py          # System instructions & knowledge taxonomy
+│       └── prompts.py          # Operational analyst instructions & safety taxonomy
 └── utils/
     └── __init__.py
 ```
 
 ---
 
-## Getting Started
+## Readiness Scoring & Classifications
 
-### 1. Virtual Environment & Dependencies
-```bash
-python -m venv venv
+The readiness scoring system is deterministic and transparent:
 
-# Windows
-.\venv\Scripts\activate
-# Linux/macOS
-source venv/bin/activate
+| Category | Max Weight | Criteria |
+|---|---|---|
+| **Current Status** | 20 | Operational state explicitly defined (`operational`, `needs_attention`, `degraded`, `offline`) |
+| **Issue** | 15 | Primary symptom or defect documented |
+| **Completed Actions** | 15 | Verified actions already taken |
+| **Pending Actions** | 15 | Unresolved steps documented |
+| **Operational Context** | 10 | Operating conditions, load %, or ambient factors recorded |
+| **Workaround** | 10 | Operating restrictions/limits defined (or not required if operational) |
+| **Next Action** | 5 | Specific immediate step defined for oncoming technician |
+| **Unknowns Identified** | 10 | Explicitly acknowledging unconfirmed assumptions is rewarded |
+| **Total** | **100** | Active unaddressed gaps reduce score; answering gaps increases readiness |
 
-pip install -r requirements.txt
-```
-
-### 2. Environment Variables
-Copy `.env.example` to `.env` in project root:
-```bash
-cp ../.env.example .env
-```
-Key variables:
-- `GEMINI_API_KEY`: Google GenAI API key (if omitted, backend seamlessly runs in offline deterministic demo mode)
-- `GEMINI_MODEL`: Defaults to `gemini-2.5-flash`
-- `DATABASE_URL`: `sqlite+aiosqlite:///./handover.db` (or PostgreSQL connection URL)
-- `FRONTEND_ORIGIN`: `http://localhost:5173`
-
-### 3. Run the Backend
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-- **Base URL**: `http://localhost:8000`
-- **Health Check**: `http://localhost:8000/health`
-- **Swagger Docs**: `http://localhost:8000/docs`
-
-### 4. Run Tests
-```bash
-pytest
-```
+### Readiness Lifecycle States
+- `0–49`: **incomplete**
+- `50–74`: **needs_attention**
+- `75–89`: **almost_ready**
+- `90–100`: **ready**
 
 ---
 
@@ -109,9 +116,26 @@ pytest
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/health` | Service health status check |
-| `GET` | `/api/assets` | List all assets (auto-seeded with `COMP-03`, `GEN-12`, `PUMP-07`) |
+| `GET` | `/api/assets` | List all assets (auto-seeded: `COMP-03`, `GEN-12`, `PUMP-07`) |
 | `GET` | `/api/assets/{asset_id}` | Retrieve single asset details |
-| `POST` | `/api/assets` | Register a new asset |
-| `POST` | `/api/handovers/analyze` | AI extraction of messy input into structured operational state & gap detection |
-| `POST` | `/api/handovers/{id}/answer` | Answer a detected gap question, recalculate readiness |
-| `GET` | `/api/assets/{asset_id}/history` | Retrieve handover history for an asset |
+| `POST` | `/api/assets` | Register a new equipment asset |
+| `POST` | `/api/handovers/analyze` | AI extraction, gap detection, and readiness score evaluation |
+| `POST` | `/api/handovers/{id}/answer` | Submit answer to gap question, update memory, recalculate readiness |
+| `POST` | `/api/handovers/compare` | Semantic state comparison ignoring wording-only differences |
+| `GET` | `/api/assets/{asset_id}/history` | Retrieve handover records and audit events for an asset |
+
+---
+
+## Local Development & Testing
+
+### 1. Run Server
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Health: [http://localhost:8000/health](http://localhost:8000/health)
+
+### 2. Run Tests
+```bash
+pytest
+```

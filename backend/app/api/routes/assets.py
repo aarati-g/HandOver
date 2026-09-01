@@ -2,11 +2,12 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.database import get_db
 from app.db.models import Asset, Handover
 from app.schemas.asset import AssetCreate, AssetResponse
-from app.schemas.handover import HandoverHistoryItem, OperationalState
+from app.schemas.handover import HandoverHistoryItem, HandoverEventItem, OperationalState
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
 
@@ -38,7 +39,6 @@ async def get_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
 @router.post("", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
 async def create_asset(payload: AssetCreate, db: AsyncSession = Depends(get_db)):
     """Register a new industrial equipment asset."""
-    # Check if exists
     stmt = select(Asset).where(Asset.asset_code == payload.asset_code)
     existing = (await db.execute(stmt)).scalar_one_or_none()
     if existing:
@@ -56,8 +56,13 @@ async def create_asset(payload: AssetCreate, db: AsyncSession = Depends(get_db))
 
 @router.get("/{asset_id}/history", response_model=List[HandoverHistoryItem])
 async def get_asset_history(asset_id: str, db: AsyncSession = Depends(get_db)):
-    """Retrieve historical handover records for a specific asset."""
-    stmt = select(Handover).where(Handover.asset_id == asset_id).order_by(Handover.created_at.desc())
+    """Retrieve historical handover records and event audit logs for a specific asset."""
+    stmt = (
+        select(Handover)
+        .options(selectinload(Handover.events))
+        .where(Handover.asset_id == asset_id)
+        .order_by(Handover.created_at.desc())
+    )
     result = await db.execute(stmt)
     handovers = result.scalars().all()
 
@@ -65,15 +70,27 @@ async def get_asset_history(asset_id: str, db: AsyncSession = Depends(get_db)):
     for h in handovers:
         op_state = OperationalState(
             issue=h.issue,
+            current_status=h.current_status,
             completed_actions=h.completed_actions or [],
             pending_actions=h.pending_actions or [],
             workaround=h.workaround,
             root_cause=h.root_cause,
-            current_status=h.current_status,
+            operational_context=h.operational_context,
             risks=h.risks or [],
             unknowns=h.unknowns or [],
+            next_action=h.next_action,
             confidence=h.confidence or 1.0,
         )
+        events = [
+            HandoverEventItem(
+                id=e.id,
+                handover_id=e.handover_id,
+                event_type=e.event_type,
+                details=e.details or {},
+                created_at=e.created_at,
+            )
+            for e in (h.events or [])
+        ]
         items.append(
             HandoverHistoryItem(
                 id=h.id,
@@ -81,6 +98,8 @@ async def get_asset_history(asset_id: str, db: AsyncSession = Depends(get_db)):
                 raw_input=h.raw_input,
                 operational_state=op_state,
                 readiness_score=h.readiness_score,
+                readiness_status=h.readiness_status or "needs_attention",
+                events=events,
                 created_at=h.created_at,
             )
         )

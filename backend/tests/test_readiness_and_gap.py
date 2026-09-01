@@ -4,17 +4,15 @@ from app.services.handover_service import handover_service
 
 
 def test_gap_detection_on_demo_input():
-    """Verify that gap detection correctly identifies missing post-repair testing."""
+    """Verify that gap detection correctly identifies missing post-repair testing on COMP-03."""
     state = OperationalState(
         issue="Abnormal vibration",
+        current_status="needs_attention",
         completed_actions=["Belt replaced"],
         pending_actions=["Motor inspection"],
         workaround="Operate below 70% load",
         root_cause="Unknown",
-        current_status="needs_attention",
-        risks=[],
         unknowns=["Root cause has not been confirmed"],
-        confidence=0.86,
     )
     raw_text = "Machine 03 has abnormal vibration. We replaced the belt, but the motor hasn't been inspected. It is currently operating below 70% load."
     
@@ -22,65 +20,95 @@ def test_gap_detection_on_demo_input():
     assert gap.detected is True
     assert "tested" in gap.question.lower() or "load" in gap.question.lower()
     assert gap.severity == "medium"
+    assert gap.reason is not None
 
 
-def test_gap_resolution_after_answer():
-    """Verify that gap is resolved when technician provides load testing confirmation."""
+def test_gap_prioritization_high_over_medium():
+    """Verify that safety/isolation gaps take priority over testing gaps."""
     state = OperationalState(
-        issue="Abnormal vibration",
-        completed_actions=["Belt replaced", "Verification test: Tested under normal load"],
-        pending_actions=["Motor inspection"],
-        workaround="Operate below 70% load",
-        root_cause="Unknown",
-        current_status="needs_attention",
-        risks=[],
-        unknowns=[],
-        confidence=0.90,
+        issue="Transformer overheating",
+        current_status="offline",  # Offline triggers high priority LOTO check
+        completed_actions=["Fan bearing replaced"],
+        pending_actions=[],
+        unknowns=["Thermal limit exceeded"],
     )
-    gap = gap_service.detect_gap(state, answered_context="Yes, it was tested under normal load")
-    assert gap.detected is False
+    gap = gap_service.detect_gap(state)
+    assert gap.detected is True
+    assert gap.severity == "high"
+    assert "isolation" in gap.question.lower() or "loto" in gap.question.lower()
 
 
-def test_deterministic_readiness_score():
-    """Verify that readiness score calculation is deterministic and weighted properly."""
+def test_readiness_breakdown_and_status():
+    """Verify deterministic scoring breakdown and lifecycle state classification."""
     state = OperationalState(
         issue="Abnormal vibration",
+        current_status="needs_attention",
         completed_actions=["Belt replaced"],
         pending_actions=["Motor inspection"],
         workaround="Operate below 70% load",
         root_cause="Unknown",
-        current_status="needs_attention",
-        risks=[],
-        unknowns=["Root cause has not been confirmed"],
-        confidence=0.86,
+        operational_context="Discovered on shift 2",
+        unknowns=["Root cause not confirmed"],
+        next_action="Inspect motor",
     )
     
-    # With active gap
-    initial_score = handover_service.calculate_readiness_score(state, gap_detected=True, answered_gap=False)
-    assert initial_score == 72
+    # Active gap
+    initial_eval = handover_service.evaluate_readiness(state, gap_detected=True, answered_gap=False)
+    assert initial_eval.score == 72
+    assert initial_eval.status == "needs_attention"
+    assert initial_eval.breakdown.current_status == 20
+    assert initial_eval.breakdown.issue == 15
+    assert initial_eval.breakdown.completed_actions == 15
+    assert initial_eval.breakdown.pending_actions == 15
 
-    # After gap answered
-    answered_score = handover_service.calculate_readiness_score(state, gap_detected=False, answered_gap=True)
-    assert answered_score >= 90
+    # Answered gap
+    answered_eval = handover_service.evaluate_readiness(state, gap_detected=False, answered_gap=True)
+    assert answered_eval.score >= 90
+    assert answered_eval.status == "ready"
 
 
-def test_change_detection():
-    """Verify that state changes between two handovers are detected."""
+def test_meaningful_change_detection():
+    """Verify detection of meaningful state transitions."""
     prev = OperationalState(
         issue="Normal operation",
-        completed_actions=["Oil top-up"],
-        pending_actions=[],
         current_status="operational",
+        completed_actions=["Daily oil check"],
+        pending_actions=[],
+        workaround=None,
     )
     curr = OperationalState(
         issue="Abnormal vibration",
+        current_status="needs_attention",
         completed_actions=["Belt replaced"],
         pending_actions=["Motor inspection"],
-        current_status="needs_attention",
+        workaround="Operate below 70% load",
     )
     
-    changes = handover_service.detect_changes(prev, curr)
-    assert len(changes) >= 2
-    fields = [c.field for c in changes]
+    comp = handover_service.detect_changes(prev, curr)
+    assert comp.has_changes is True
+    fields = [c.field for c in comp.changes]
     assert "current_status" in fields
     assert "issue" in fields
+    assert "workaround" in fields
+
+
+def test_ignore_wording_only_differences():
+    """Verify that minor cosmetic or article variations are ignored."""
+    prev = OperationalState(
+        issue="Abnormal vibration",
+        current_status="needs_attention",
+        completed_actions=["Belt was replaced"],
+        pending_actions=["Motor inspection"],
+        workaround="Operate below 70% load",
+    )
+    curr = OperationalState(
+        issue="Abnormal vibration",
+        current_status="needs_attention",
+        completed_actions=["The belt was replaced"],
+        pending_actions=["Motor inspection"],
+        workaround="Operate below 70% load",
+    )
+    
+    comp = handover_service.detect_changes(prev, curr)
+    assert comp.has_changes is False
+    assert len(comp.changes) == 0

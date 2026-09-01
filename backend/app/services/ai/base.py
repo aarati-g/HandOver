@@ -17,12 +17,18 @@ class AIProvider(ABC):
     ) -> OperationalState:
         """
         Analyze unstructured technician knowledge and extract structured operational state.
-        
-        Args:
-            text: Messy notes, transcript, or observation text.
-            asset_context: Optional metadata about the target asset (name, type, location).
-            
-        Returns:
-            OperationalState: Validated structured operational state.
+        """
+        pass
+
+    @abstractmethod
+    async def re_evaluate_with_answer(
+        self,
+        current_state: OperationalState,
+        question: str,
+        answer: str,
+        asset_context: Optional[Dict[str, Any]] = None,
+    ) -> OperationalState:
+        """
+        Update an operational state by incorporating the technician's answer to a gap question.
         """
         pass
