@@ -1,25 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, ArrowRight, Layers } from 'lucide-react';
-import { PageHeader, Input, Card, StatusBadge, Button, EmptyState } from '@/components';
-import { mockAssets } from '@/data';
+import { PageHeader, Input, Card, StatusBadge, Button, EmptyState, LoadingState } from '@/components';
+import { api } from '@/services/api';
+import type { Asset } from '@/types';
 
 type FilterTab = 'all' | 'attention' | 'operational';
 
 export const AssetsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterTab>('all');
 
-  const filteredAssets = mockAssets.filter((asset) => {
-    // Search filter
+  useEffect(() => {
+    let isMounted = true;
+    api.getAssets().then((data) => {
+      if (isMounted) {
+        setAssets(data);
+        setLoading(false);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredAssets = assets.filter((asset) => {
     const matchesSearch =
       asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.assetCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.location.toLowerCase().includes(searchTerm.toLowerCase());
 
-    // Status filter
     if (statusFilter === 'attention') {
       return matchesSearch && (asset.status === 'needs_attention' || asset.status === 'degraded' || asset.status === 'offline');
     }
@@ -39,7 +53,7 @@ export const AssetsPage: React.FC = () => {
             variant="primary"
             size="sm"
             leftIcon={<Plus className="w-4 h-4" />}
-            onClick={() => navigate('/handover/new')}
+            onClick={() => navigate('/handover/new?asset=COMP-03')}
           >
             New Handover
           </Button>
@@ -65,7 +79,7 @@ export const AssetsPage: React.FC = () => {
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          All ({mockAssets.length})
+          All ({assets.length})
         </button>
         <button
           type="button"
@@ -76,7 +90,7 @@ export const AssetsPage: React.FC = () => {
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          Attention ({mockAssets.filter((a) => a.status === 'needs_attention').length})
+          Attention ({assets.filter((a) => a.status === 'needs_attention' || a.status === 'degraded').length})
         </button>
         <button
           type="button"
@@ -87,16 +101,18 @@ export const AssetsPage: React.FC = () => {
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          Operational ({mockAssets.filter((a) => a.status === 'operational').length})
+          Operational ({assets.filter((a) => a.status === 'operational').length})
         </button>
       </div>
 
       {/* Asset Cards List */}
-      {filteredAssets.length > 0 ? (
+      {loading ? (
+        <LoadingState label="Retrieving registered assets..." />
+      ) : filteredAssets.length > 0 ? (
         <div className="space-y-2.5 pt-1">
           {filteredAssets.map((asset) => (
             <Card
-              key={asset.id}
+              key={asset.id || asset.assetCode}
               variant="interactive"
               onClick={() => navigate(`/assets/${asset.assetCode}`)}
             >

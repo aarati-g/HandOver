@@ -72,6 +72,26 @@ export interface ReadinessDetail {
   breakdown: ReadinessBreakdown;
 }
 
+export interface StateChange {
+  field: string;
+  previous: string | null;
+  current: string | null;
+  severity: 'low' | 'medium' | 'high';
+}
+
+export interface StateComparisonResponse {
+  has_changes: boolean;
+  changes: StateChange[];
+}
+
+export interface OperationalEventSummary {
+  type: string;
+  timestamp: string;
+  summary: string;
+  details?: Record<string, unknown>;
+  handover_id?: number | null;
+}
+
 export interface ChangeEvent {
   field: string;
   previousValue: string | null;
@@ -108,6 +128,16 @@ export interface AIAnalysisResult {
   gap: HandoverGap;
   unknowns: string[];
   nextAction: string | null;
+  handoverId?: number | string;
+}
+
+export interface HandoverAnalyzePayload {
+  asset_id: string;
+  text: string;
+}
+
+export interface HandoverAnswerPayload {
+  answer: string;
 }
 
 export interface HealthStatus {
