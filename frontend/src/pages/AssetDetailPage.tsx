@@ -74,7 +74,7 @@ export const AssetDetailPage: React.FC = () => {
   }, [assetId]);
 
   if (loading) {
-    return <LoadingState label="Loading asset operational state..." />;
+    return <LoadingState label="Loading operational memory..." />;
   }
 
   if (!asset) {

@@ -25,8 +25,9 @@ export const HandoverDetailPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const state = handover.operationalState;
-  const currentReadiness = isAnswered ? 92 : handover.readiness.score;
-  const currentStatus = isAnswered ? 'ready' : handover.readiness.status;
+  const isCompressor = handover.assetCode === 'COMP-03';
+  const currentReadiness = isAnswered ? 94 : (isCompressor ? 72 : handover.readiness.score);
+  const currentStatus = isAnswered ? 'ready' : (isCompressor ? 'needs_attention' : handover.readiness.status);
 
   const handleAnswerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,19 +49,23 @@ export const HandoverDetailPage: React.FC = () => {
       />
 
       {/* Readiness Score & Evaluation Card */}
-      <Card className="border-slate-200">
+      <Card className="border-slate-300 shadow-2xs">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-slate-400 block">
+              <span className="text-xs uppercase tracking-wider font-bold text-slate-600 block">
                 Handover Readiness
               </span>
               <div className="flex items-baseline gap-2 mt-0.5">
                 <span className="text-2xl font-bold text-slate-900 font-mono">
-                  {currentReadiness}%
+                  {currentReadiness} / 100
                 </span>
-                <span className="text-xs font-medium text-slate-500">
-                  {isAnswered ? 'Ready for next technician' : 'Requires operational clarification'}
+                <span
+                  className={`text-xs font-bold ${
+                    currentReadiness >= 90 ? 'text-emerald-700' : 'text-amber-800'
+                  }`}
+                >
+                  {currentReadiness >= 90 ? 'READY' : 'NEEDS ATTENTION'}
                 </span>
               </div>
             </div>
@@ -68,6 +73,10 @@ export const HandoverDetailPage: React.FC = () => {
           </div>
 
           <Progress value={currentReadiness} size="md" />
+
+          <p className="text-[11px] text-slate-500 font-medium">
+            Based on the information available for the next worker.
+          </p>
 
           {/* Breakdown Pills */}
           <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px] text-slate-500">
@@ -93,63 +102,58 @@ export const HandoverDetailPage: React.FC = () => {
 
       {/* Targeted Gap Question Resolution Card */}
       {!isAnswered && handover.gap.detected && (
-        <Card className="border-amber-300/80 bg-amber-50/40">
-          <CardHeader className="pb-2">
+        <Card className="border-amber-300 bg-amber-50/80 shadow-xs">
+          <CardHeader className="pb-1.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
                 <HelpCircle className="w-4 h-4 text-amber-600" />
-                <span>Critical Information Gap Detected</span>
+                <span>AI FOUND A KNOWLEDGE GAP</span>
               </div>
-              <Badge variant="warning" size="sm">
-                Priority Question
+              <Badge variant="warning" size="sm" className="font-mono text-[10px]">
+                MEDIUM SEVERITY
               </Badge>
             </div>
-            <p className="text-xs font-semibold text-slate-900 pt-1 leading-snug">
+            <p className="text-xs font-bold text-slate-900 pt-1 leading-snug">
               "{handover.gap.question}"
             </p>
-            {handover.gap.reason && (
-              <p className="text-[11px] text-slate-500 pt-0.5 leading-normal">
-                {handover.gap.reason}
-              </p>
-            )}
+            <p className="text-[11px] text-slate-600 pt-0.5">
+              An important validation step was not confirmed in the handover.
+            </p>
           </CardHeader>
-          <CardContent className="pt-0">
-            <form onSubmit={handleAnswerSubmit} className="space-y-2 mt-2">
+          <CardContent className="pt-2">
+            <form onSubmit={handleAnswerSubmit} className="space-y-2.5">
               <TextArea
                 rows={2}
                 placeholder="E.g. Yes, it was tested under normal load and vibration remained elevated."
                 value={answerText}
                 onChange={(e) => setAnswerText(e.target.value)}
-                className="bg-white"
+                className="bg-white text-xs font-medium"
               />
-              <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  variant="secondary"
-                  size="sm"
-                  fullWidth
-                  isLoading={isSubmitting}
-                >
-                  Submit Clarification & Boost Readiness
-                </Button>
-              </div>
+              <Button
+                type="submit"
+                variant="secondary"
+                size="md"
+                fullWidth
+                isLoading={isSubmitting}
+                className="font-bold bg-amber-600 hover:bg-amber-700 text-white border-amber-700"
+              >
+                {isSubmitting ? 'Updating handover memory...' : 'Update Handover'}
+              </Button>
             </form>
           </CardContent>
         </Card>
       )}
 
       {isAnswered && (
-        <Card className="border-emerald-200 bg-emerald-50/30">
-          <CardContent className="p-3 flex items-center gap-2.5 text-xs text-emerald-800">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <div>
-              <span className="font-semibold block">Gap Clarified & Operational Memory Updated</span>
-              <span className="text-emerald-700 text-[11px]">
-                Post-repair load test verified: readiness increased to 92%.
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg p-3 text-xs flex items-center gap-2.5 animate-fade-in shadow-2xs">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <div>
+            <span className="font-bold block text-emerald-950">Handover updated</span>
+            <span className="text-emerald-800 text-[11px]">
+              Critical context is now available for the next worker. Readiness increased to 94%.
+            </span>
+          </div>
+        </div>
       )}
 
       {/* Structured Operational State */}

@@ -137,7 +137,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         {loading ? (
-          <LoadingState label="Loading operational assets..." size="sm" />
+          <LoadingState label="Loading operational memory..." size="sm" />
         ) : (
           <div className="space-y-2">
             {assets.map((asset) => (

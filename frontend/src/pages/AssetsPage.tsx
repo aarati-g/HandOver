@@ -107,7 +107,7 @@ export const AssetsPage: React.FC = () => {
 
       {/* Asset Cards List */}
       {loading ? (
-        <LoadingState label="Retrieving registered assets..." />
+        <LoadingState label="Loading operational memory..." />
       ) : filteredAssets.length > 0 ? (
         <div className="space-y-2.5 pt-1">
           {filteredAssets.map((asset) => (

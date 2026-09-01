@@ -41,7 +41,7 @@ export const HistoryPage: React.FC = () => {
         <Card>
           <div className="p-4">
             {loading ? (
-              <LoadingState label="Loading audit history..." size="sm" />
+              <LoadingState label="Loading operational memory..." size="sm" />
             ) : historyEvents.length > 0 ? (
               <div className="relative border-l-2 border-slate-200 ml-2.5 space-y-4 py-1">
                 {historyEvents.map((item, index) => (
