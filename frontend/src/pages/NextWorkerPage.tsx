@@ -17,7 +17,7 @@ export const NextWorkerPage: React.FC = () => {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="What You Need To Know"
+        title="WHAT YOU NEED TO KNOW"
         subtitle="Operational briefing for oncoming technician"
         showBackButton
         badge={<StatusBadge status="needs_attention" size="sm" />}
@@ -37,7 +37,7 @@ export const NextWorkerPage: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">
-              CURRENT STATE
+              CURRENT CONDITION
             </span>
             <span className="text-[10px] font-bold text-amber-400 uppercase">
               Needs Attention
@@ -47,7 +47,7 @@ export const NextWorkerPage: React.FC = () => {
         </div>
 
         <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-xs font-mono text-[11px] text-slate-300 flex items-center justify-between">
-          <span>Workaround:</span>
+          <span>Temporary Workaround:</span>
           <strong className="text-amber-300">Operate below 70% load</strong>
         </div>
       </div>
@@ -69,11 +69,11 @@ export const NextWorkerPage: React.FC = () => {
 
       {/* Completed vs Unresolved Matrix */}
       <div className="grid grid-cols-1 gap-2.5">
-        {/* Completed */}
+        {/* Already Done */}
         <Card>
           <CardHeader className="pb-1.5 bg-slate-50 border-b border-slate-100">
             <CardTitle className="text-xs uppercase tracking-wider text-slate-500 font-bold flex items-center justify-between">
-              <span>COMPLETED WORK</span>
+              <span>ALREADY DONE</span>
               <span className="text-emerald-700 font-bold">Verified</span>
             </CardTitle>
           </CardHeader>
