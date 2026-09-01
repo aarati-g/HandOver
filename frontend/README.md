@@ -2,16 +2,12 @@
 
 This directory contains the phone-first web application for the **Handover** project (AI Operational Memory for the Next Person).
 
-## Ownership
-
-**Owner**: Developer 1
-
-### Scope & Boundaries
-- Frontend UI/UX, responsive phone-first layouts, and design system
-- Component library and styling (Tailwind CSS, Lucide icons, Framer Motion)
-- Client-side routing (React Router)
-- Frontend mock data and state management
-- API integration with the backend service
+### Scope & Features
+- Mobile-first responsive layouts and design system (Tailwind CSS)
+- Component library with semantic status and micro-interactions
+- Client-side routing with React Router 7
+- Multi-modal input capture (Audio voice note + Camera frame capture)
+- API integration with FastAPI unified service layer
 
 ---
 
